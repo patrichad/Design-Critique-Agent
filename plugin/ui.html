@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Design Critique</title>
+    <style>
+      body { font-family: Inter, sans-serif; margin: 12px; color: #111; }
+      h3 { margin: 16px 0 6px; font-size: 13px; }
+      .issue { border: 1px solid #ddd; border-radius: 8px; padding: 10px; margin-bottom: 10px; }
+      .meta { color: #666; font-size: 12px; margin-top: 4px; }
+      button { border: none; background: #0d99ff; color: #fff; border-radius: 6px; padding: 8px 10px; cursor: pointer; }
+      button.secondary { background: #eee; color: #111; }
+      .row { display: flex; gap: 8px; margin-bottom: 8px; }
+      .col { flex: 1; }
+      label { font-size: 12px; color: #444; display: block; margin-bottom: 2px; }
+      select, input { width: 100%; padding: 6px; box-sizing: border-box; }
+      details { margin-bottom: 12px; }
+      summary { cursor: pointer; font-weight: 600; }
+      .small { font-size: 11px; color: #777; }
+    </style>
+  </head>
+  <body>
+    <details id="settings" open>
+      <summary>Settings</summary>
+      <div class="row">
+        <div class="col">
+          <label>Provider</label>
+          <select id="provider">
+            <option value="openai">OpenAI</option>
+            <option value="anthropic">Anthropic</option>
+          </select>
+        </div>
+        <div class="col">
+          <label>Model</label>
+          <input id="model" placeholder="auto" />
+        </div>
+      </div>
+      <div class="row">
+        <div class="col">
+          <label>OpenAI API key</label>
+          <input id="openaiKey" type="password" placeholder="sk-..." />
+        </div>
+      </div>
+      <div class="row">
+        <div class="col">
+          <label>Anthropic API key</label>
+          <input id="anthropicKey" type="password" placeholder="sk-ant-..." />
+        </div>
+      </div>
+      <div class="row">
+        <button id="save" class="secondary">Save settings</button>
+      </div>
+      <p class="small">Keys are stored locally in Figma's clientStorage and never sent to any server other than the chosen provider.</p>
+    </details>
+
+    <div class="row">
+      <div class="col">
+        <label>Mode</label>
+        <select id="mode">
+          <option value="quick">quick</option>
+          <option value="deep">deep</option>
+        </select>
+      </div>
+      <div class="col" style="display: flex; align-items: flex-end; gap: 8px;">
+        <button id="run">Run critique</button>
+      </div>
+    </div>
+
+    <p id="status"></p>
+    <div id="issues"></div>
+
+    <script>
+      const state = { issues: [], settings: null };
+      const status = document.getElementById("status");
+      const issuesRoot = document.getElementById("issues");
+
+      const send = (msg) => parent.postMessage({ pluginMessage: msg }, "*");
+
+      function applySettings(settings) {
+        if (!settings) return;
+        state.settings = settings;
+        document.getElementById("provider").value = settings.provider || "openai";
+        document.getElementById("model").value = settings.model || "";
+        document.getElementById("openaiKey").value = settings.openaiKey || "";
+        document.getElementById("anthropicKey").value = settings.anthropicKey || "";
+      }
+
+      function readSettings() {
+        return {
+          provider: document.getElementById("provider").value,
+          model: document.getElementById("model").value.trim() || undefined,
+          openaiKey: document.getElementById("openaiKey").value.trim() || undefined,
+          anthropicKey: document.getElementById("anthropicKey").value.trim() || undefined,
+        };
+      }
+
+      function renderIssues() {
+        issuesRoot.innerHTML = "";
+        state.issues.forEach((issue) => {
+          const wrapper = document.createElement("div");
+          wrapper.className = "issue";
+          wrapper.innerHTML = `
+            <strong>[${issue.severity}] ${issue.title}</strong>
+            <div>${issue.detail}</div>
+            <div><em>Fix:</em> ${issue.recommendedFix}</div>
+            <div class="meta">${issue.category} | confidence: ${issue.confidence}</div>
+          `;
+          issuesRoot.appendChild(wrapper);
+        });
+      }
+
+      const SYSTEM_PROMPT = `You are a senior product designer running a design critique.
+You receive a JSON description of one or more Figma frames.
+Return ONLY a JSON object with shape:
+{
+  "issues": [
+    {
+      "frameId": string,
+      "nodeId"?: string,
+      "title": string,
+      "detail": string,
+      "recommendedFix": string,
+      "severity": "critical" | "high" | "medium" | "low",
+      "category": "visual_hierarchy" | "spacing_alignment" | "accessibility" | "design_system_consistency" | "copy_clarity" | "interaction_affordance",
+      "confidence": number
+    }
+  ]
+}
+Rules:
+- Be specific and actionable. Avoid generic advice.
+- Reference real elements from the input by name and nodeId where possible.
+- Limit to the 6 highest-impact issues.
+- confidence is a number between 0 and 1.
+- Output JSON only, no commentary.`;
+
+      function buildUserPrompt(payload) {
+        return `Critique mode: ${payload.mode}\nFrames JSON:\n${JSON.stringify(payload.frames, null, 2)}`;
+      }
+
+      function normalizeIssues(raw, payload) {
+        const incoming = Array.isArray(raw?.issues) ? raw.issues : [];
+        return incoming
+          .map((issue, idx) => ({
+            issueId: `${Date.now()}-${idx}`,
+            frameId: issue.frameId || payload.frames[0]?.frameId || "unknown",
+            nodeId: issue.nodeId,
+            title: String(issue.title || "Untitled issue"),
+            detail: String(issue.detail || ""),
+            recommendedFix: String(issue.recommendedFix || ""),
+            severity: ["critical", "high", "medium", "low"].includes(issue.severity) ? issue.severity : "medium",
+            category: ["visual_hierarchy","spacing_alignment","accessibility","design_system_consistency","copy_clarity","interaction_affordance"].includes(issue.category) ? issue.category : "visual_hierarchy",
+            confidence: typeof issue.confidence === "number" ? Math.max(0, Math.min(1, issue.confidence)) : 0.6,
+            tokensCost: 0,
+          }))
+          .filter((i) => i.title && i.detail && i.recommendedFix);
+      }
+
+      async function callOpenAI(payload, settings) {
+        if (!settings.openaiKey) throw new Error("Missing OpenAI API key in settings.");
+        const model = settings.model || "gpt-4o-mini";
+        const res = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${settings.openaiKey}`,
+          },
+          body: JSON.stringify({
+            model,
+            response_format: { type: "json_object" },
+            messages: [
+              { role: "system", content: SYSTEM_PROMPT },
+              { role: "user", content: buildUserPrompt(payload) },
+            ],
+            temperature: 0.2,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error?.message || `OpenAI error ${res.status}`);
+        const text = data.choices?.[0]?.message?.content || "{}";
+        return JSON.parse(text);
+      }
+
+      async function callAnthropic(payload, settings) {
+        if (!settings.anthropicKey) throw new Error("Missing Anthropic API key in settings.");
+        const model = settings.model || "claude-3-5-sonnet-latest";
+        const res = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": settings.anthropicKey,
+            "anthropic-version": "2023-06-01",
+            "anthropic-dangerous-direct-browser-access": "true",
+          },
+          body: JSON.stringify({
+            model,
+            max_tokens: 1500,
+            system: SYSTEM_PROMPT,
+            messages: [{ role: "user", content: buildUserPrompt(payload) }],
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error?.message || `Anthropic error ${res.status}`);
+        const text = data.content?.[0]?.text || "{}";
+        const cleaned = text.replace(/^```(?:json)?/, "").replace(/```$/, "").trim();
+        return JSON.parse(cleaned);
+      }
+
+      async function runCritiqueWithProvider(payload) {
+        const settings = readSettings();
+        if (settings.provider === "anthropic") return callAnthropic(payload, settings);
+        return callOpenAI(payload, settings);
+      }
+
+      document.getElementById("save").onclick = () => {
+        const settings = readSettings();
+        send({ type: "SAVE_SETTINGS", settings });
+        status.textContent = "Saving settings...";
+      };
+
+      document.getElementById("run").onclick = () => {
+        status.textContent = "Reading selection...";
+        send({ type: "BUILD_REQUEST", mode: document.getElementById("mode").value });
+      };
+
+      onmessage = async (event) => {
+        const message = event.data.pluginMessage;
+        if (!message) return;
+
+        if (message.type === "SETTINGS_LOADED") {
+          applySettings(message.settings);
+          return;
+        }
+
+        if (message.type === "SETTINGS_SAVED") {
+          status.textContent = "Settings saved.";
+          return;
+        }
+
+        if (message.type === "REQUEST_ERROR") {
+          status.textContent = message.error;
+          return;
+        }
+
+        if (message.type === "REQUEST_BUILT") {
+          status.textContent = "Calling LLM provider...";
+          try {
+            const raw = await runCritiqueWithProvider(message.payload);
+            state.issues = normalizeIssues(raw, message.payload);
+            renderIssues();
+            status.textContent = `Found ${state.issues.length} issues`;
+          } catch (error) {
+            status.textContent = error.message || "Provider request failed";
+          }
+          return;
+        }
+      };
+
+      send({ type: "LOAD_SETTINGS" });
+    </script>
+  </body>
+</html>

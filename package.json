@@ -1,0 +1,18 @@
+{
+  "name": "design-critique-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:plugin": "node scripts/build-plugin.mjs",
+    "dev:api": "tsx backend/api/server.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@figma/plugin-typings": "^1.117.0",
+    "@types/node": "^22.15.3",
+    "esbuild": "^0.25.4",
+    "tsx": "^4.19.2",
+    "typescript": "^5.8.3"
+  }
+}
