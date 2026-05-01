@@ -1,15 +1,17 @@
 {
   "name": "Design Critique Agent",
-  "id": "design-critique-agent",
+  "id": "1632122533776842770",
   "api": "1.0.0",
   "main": "code.js",
   "ui": "ui.html",
   "editorType": ["figma"],
+  "documentAccess": "dynamic-page",
+  "permissions": ["payments"],
   "networkAccess": {
     "allowedDomains": [
       "https://api.openai.com",
       "https://api.anthropic.com"
     ],
-    "reasoning": "Send selected frame structure to the user's chosen LLM provider (OpenAI or Anthropic) using their own API key to receive design critique results."
+    "reasoning": "Sends selected frame structure (names, layout, text) to the user's chosen LLM provider (OpenAI or Anthropic) using the user's own API key, in order to return structured design critique. No data is sent to any other server."
   }
 }

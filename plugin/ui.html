@@ -4,85 +4,354 @@
     <meta charset="UTF-8" />
     <title>Design Critique</title>
     <style>
-      body { font-family: Inter, sans-serif; margin: 12px; color: #111; }
-      h3 { margin: 16px 0 6px; font-size: 13px; }
-      .issue { border: 1px solid #ddd; border-radius: 8px; padding: 10px; margin-bottom: 10px; }
-      .meta { color: #666; font-size: 12px; margin-top: 4px; }
-      button { border: none; background: #0d99ff; color: #fff; border-radius: 6px; padding: 8px 10px; cursor: pointer; }
-      button.secondary { background: #eee; color: #111; }
-      .row { display: flex; gap: 8px; margin-bottom: 8px; }
-      .col { flex: 1; }
-      label { font-size: 12px; color: #444; display: block; margin-bottom: 2px; }
-      select, input { width: 100%; padding: 6px; box-sizing: border-box; }
-      details { margin-bottom: 12px; }
-      summary { cursor: pointer; font-weight: 600; }
-      .small { font-size: 11px; color: #777; }
+      :root {
+        --bg: #f7f6f3;
+        --surface: #ffffff;
+        --border: #d9d8d4;
+        --fg: #000000;
+        --fg-muted: #717171;
+        --primary: #000000;
+        --primary-fg: #ffffff;
+        --radius: 4px;
+        --gap-xs: 4px;
+        --gap-sm: 8px;
+        --gap-md: 12px;
+        --gap-lg: 24px;
+      }
+
+      * { box-sizing: border-box; }
+
+      html, body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+        font-size: 13px;
+        line-height: normal;
+      }
+
+      body {
+        padding: var(--gap-lg);
+        display: flex;
+        flex-direction: column;
+        gap: var(--gap-lg);
+      }
+
+      .section {
+        display: flex;
+        flex-direction: column;
+        gap: var(--gap-lg);
+        width: 100%;
+      }
+
+      .section.tight {
+        gap: var(--gap-sm);
+      }
+
+      .section-title {
+        display: flex;
+        align-items: center;
+        gap: var(--gap-xs);
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        user-select: none;
+        margin: 0;
+      }
+      .section-title-icon {
+        width: 24px;
+        height: 24px;
+        flex-shrink: 0;
+        transition: transform 120ms ease;
+      }
+      .section.collapsed > .section-title > .section-title-icon {
+        transform: rotate(-90deg);
+      }
+      .section.collapsed > .section-body {
+        display: none;
+      }
+
+      .section-body {
+        display: flex;
+        flex-direction: column;
+        gap: var(--gap-md);
+        width: 100%;
+      }
+
+      .row {
+        display: flex;
+        gap: var(--gap-md);
+        align-items: flex-end;
+        width: 100%;
+      }
+
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: var(--gap-xs);
+        flex: 1 1 0;
+        min-width: 0;
+      }
+
+      [hidden] { display: none !important; }
+
+      .field > label {
+        font-size: 11px;
+        font-weight: 400;
+        color: var(--fg);
+      }
+
+      .field > input,
+      .field > select {
+        appearance: none;
+        -webkit-appearance: none;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 4px 8px;
+        font: inherit;
+        font-size: 13px;
+        color: var(--fg);
+        height: 32px;
+        width: 100%;
+      }
+
+      .field > select {
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+        background-repeat: no-repeat;
+        background-position: right 4px center;
+        background-size: 24px 24px;
+        padding-right: 32px;
+      }
+
+      .field > input::placeholder {
+        color: var(--fg-muted);
+      }
+
+      .field > input:focus,
+      .field > select:focus {
+        outline: none;
+        border-color: var(--fg);
+      }
+
+      p { margin: 0; }
+
+      .helper {
+        font-size: 11px;
+        color: var(--fg-muted);
+      }
+
+      .status {
+        font-size: 13px;
+        color: var(--fg-muted);
+        margin: 0;
+        min-height: 16px;
+      }
+
+      button {
+        font: inherit;
+        font-size: 13px;
+        font-weight: 500;
+        padding: 8px;
+        border-radius: var(--radius);
+        cursor: pointer;
+        height: 32px;
+        line-height: 1;
+        white-space: nowrap;
+      }
+
+      button.primary {
+        background: var(--primary);
+        color: var(--primary-fg);
+        border: 1px solid var(--primary);
+      }
+      button.primary:hover { opacity: 0.9; }
+
+      button.secondary {
+        background: transparent;
+        color: var(--fg);
+        border: 1px solid var(--fg);
+      }
+      button.secondary:hover { background: rgba(0,0,0,0.04); }
+
+      .actions { display: flex; gap: var(--gap-sm); }
+
+      .issues {
+        display: flex;
+        flex-direction: column;
+        gap: var(--gap-lg);
+      }
+
+      .area-group {
+        display: flex;
+        flex-direction: column;
+        gap: var(--gap-sm);
+      }
+
+      .area-heading {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--fg);
+        margin: 0;
+      }
+
+      .area-summary {
+        font-size: 13px;
+        color: var(--fg-muted);
+        margin: 0 0 var(--gap-xs);
+      }
+
+      .area-cards {
+        display: flex;
+        flex-direction: column;
+        gap: var(--gap-md);
+      }
+
+      .issue {
+        background: var(--surface);
+        border: 1px solid #f1f1f1;
+        border-radius: 8px;
+        padding: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: var(--gap-xs);
+        box-shadow: 0 2px 8px 4px rgba(208, 215, 224, 0.4);
+      }
+
+      .issue-header {
+        display: flex;
+        gap: var(--gap-xs);
+        align-items: center;
+        width: 100%;
+      }
+
+      .issue-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--fg);
+        flex: 1 1 0;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .issue-body {
+        font-size: 13px;
+        font-weight: 400;
+        color: var(--fg);
+        line-height: normal;
+      }
+
+      .issue-body b { font-weight: 700; }
+
+      .issue-meta {
+        font-size: 11px;
+        color: var(--fg-muted);
+      }
+
+      .severity {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2px 4px;
+        border-radius: var(--radius);
+        font-size: 13px;
+        font-weight: 400;
+        color: #ffffff;
+        white-space: nowrap;
+        flex-shrink: 0;
+        text-transform: capitalize;
+      }
+      .severity.critical { background: #ff5d1f; }
+      .severity.high     { background: #ff5d1f; }
+      .severity.medium   { background: #fb990f; }
+      .severity.low      { background: #b800a0; }
     </style>
   </head>
   <body>
-    <details id="settings" open>
-      <summary>Settings</summary>
-      <div class="row">
-        <div class="col">
-          <label>Provider</label>
-          <select id="provider">
-            <option value="openai">OpenAI</option>
-            <option value="anthropic">Anthropic</option>
-          </select>
-        </div>
-        <div class="col">
-          <label>Model</label>
-          <input id="model" placeholder="auto" />
-        </div>
+    <div id="settings" class="section">
+      <div class="section-title" id="settingsToggle" role="button" tabindex="0">
+        <svg class="section-title-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path fill-rule="evenodd" clip-rule="evenodd" d="M5.30711 8.71299C5.4232 8.43273 5.69668 8.25 6.00002 8.25L18 8.25C18.3034 8.25 18.5768 8.43273 18.6929 8.71299C18.809 8.99324 18.7449 9.31583 18.5304 9.53033L12.5304 15.5303C12.2375 15.8232 11.7626 15.8232 11.4697 15.5303L5.46969 9.53033C5.25519 9.31583 5.19103 8.99324 5.30711 8.71299Z" fill="currentColor" />
+        </svg>
+        <span>Settings</span>
       </div>
-      <div class="row">
-        <div class="col">
-          <label>OpenAI API key</label>
-          <input id="openaiKey" type="password" placeholder="sk-..." />
+      <div class="section-body">
+        <div class="row">
+          <div class="field">
+            <label for="provider">Provider</label>
+            <select id="provider">
+              <option value="openai">OpenAI</option>
+              <option value="anthropic">Anthropic</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="model">Model</label>
+            <input id="model" placeholder="auto" />
+          </div>
         </div>
-      </div>
-      <div class="row">
-        <div class="col">
-          <label>Anthropic API key</label>
-          <input id="anthropicKey" type="password" placeholder="sk-ant-..." />
-        </div>
-      </div>
-      <div class="row">
-        <button id="save" class="secondary">Save settings</button>
-      </div>
-      <p class="small">Keys are stored locally in Figma's clientStorage and never sent to any server other than the chosen provider.</p>
-    </details>
 
-    <div class="row">
-      <div class="col">
-        <label>Mode</label>
-        <select id="mode">
-          <option value="quick">quick</option>
-          <option value="deep">deep</option>
-        </select>
-      </div>
-      <div class="col" style="display: flex; align-items: flex-end; gap: 8px;">
-        <button id="run">Run critique</button>
+        <div class="field" id="openaiKeyField">
+          <label for="openaiKey">OpenAI API key</label>
+          <input id="openaiKey" type="password" placeholder="sk-..." />
+          <p class="helper">Keys are stored locally in Figma's client storage and never sent to any server other than the chosen provider.</p>
+        </div>
+
+        <div class="field" id="anthropicKeyField" hidden>
+          <label for="anthropicKey">Anthropic API key</label>
+          <input id="anthropicKey" type="password" placeholder="sk-ant-..." />
+          <p class="helper">Keys are stored locally in Figma's client storage and never sent to any server other than the chosen provider.</p>
+        </div>
+
+        <div class="actions">
+          <button id="save" class="secondary" type="button">Save settings</button>
+        </div>
       </div>
     </div>
 
-    <p id="status"></p>
-    <div id="issues"></div>
+    <div class="section tight">
+      <div class="row">
+        <div class="field">
+          <label for="mode">Mode</label>
+          <select id="mode">
+            <option value="quick">quick</option>
+            <option value="deep">deep</option>
+          </select>
+        </div>
+        <button id="run" class="primary" type="button">Run critique</button>
+      </div>
+      <p id="access" class="helper" hidden></p>
+      <p id="status" class="status"></p>
+    </div>
+
+    <div id="issues" class="issues"></div>
 
     <script>
-      const state = { issues: [], settings: null };
+      const state = { areas: [], settings: null };
       const status = document.getElementById("status");
+      const accessLine = document.getElementById("access");
       const issuesRoot = document.getElementById("issues");
 
       const send = (msg) => parent.postMessage({ pluginMessage: msg }, "*");
 
+      function syncProviderFields() {
+        const provider = document.getElementById("provider").value;
+        document.getElementById("openaiKeyField").hidden = provider !== "openai";
+        document.getElementById("anthropicKeyField").hidden = provider !== "anthropic";
+      }
+
       function applySettings(settings) {
-        if (!settings) return;
+        if (!settings) {
+          syncProviderFields();
+          return;
+        }
         state.settings = settings;
         document.getElementById("provider").value = settings.provider || "openai";
         document.getElementById("model").value = settings.model || "";
         document.getElementById("openaiKey").value = settings.openaiKey || "";
         document.getElementById("anthropicKey").value = settings.anthropicKey || "";
+        syncProviderFields();
       }
 
       function readSettings() {
@@ -94,65 +363,211 @@
         };
       }
 
-      function renderIssues() {
+      function escapeHtml(value) {
+        return String(value)
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#39;");
+      }
+
+      const AREA_ORDER = [
+        "first_impression",
+        "usability",
+        "visual_hierarchy",
+        "consistency",
+        "accessibility",
+        "flow",
+      ];
+
+      const AREA_LABELS = {
+        first_impression: "First impression",
+        usability: "Usability",
+        visual_hierarchy: "Visual hierarchy",
+        consistency: "Consistency",
+        accessibility: "Accessibility",
+        flow: "Flow",
+      };
+
+      function renderAreas() {
         issuesRoot.innerHTML = "";
-        state.issues.forEach((issue) => {
-          const wrapper = document.createElement("div");
-          wrapper.className = "issue";
-          wrapper.innerHTML = `
-            <strong>[${issue.severity}] ${issue.title}</strong>
-            <div>${issue.detail}</div>
-            <div><em>Fix:</em> ${issue.recommendedFix}</div>
-            <div class="meta">${issue.category} | confidence: ${issue.confidence}</div>
-          `;
-          issuesRoot.appendChild(wrapper);
+        const areas = (state.areas || [])
+          .filter((a) => AREA_LABELS[a.area])
+          .sort((a, b) => AREA_ORDER.indexOf(a.area) - AREA_ORDER.indexOf(b.area));
+
+        areas.forEach((area) => {
+          const group = document.createElement("div");
+          group.className = "area-group";
+
+          const heading = document.createElement("p");
+          heading.className = "area-heading";
+          heading.textContent = AREA_LABELS[area.area];
+          group.appendChild(heading);
+
+          if (area.summary) {
+            const summary = document.createElement("p");
+            summary.className = "area-summary";
+            summary.textContent = area.summary;
+            group.appendChild(summary);
+          }
+
+          if (Array.isArray(area.observations) && area.observations.length > 0) {
+            const cards = document.createElement("div");
+            cards.className = "area-cards";
+            area.observations.forEach((obs) => {
+              const card = document.createElement("div");
+              card.className = "issue";
+              card.innerHTML = `
+                <div class="issue-header">
+                  <span class="severity ${escapeHtml(obs.severity)}">${escapeHtml(obs.severity)}</span>
+                  <div class="issue-title">${escapeHtml(obs.title)}</div>
+                </div>
+                <div class="issue-body">${escapeHtml(obs.detail)} <b>Fix:</b> ${escapeHtml(obs.recommendedFix)}</div>
+                <div class="issue-meta">confidence: ${Number(obs.confidence).toFixed(1)}</div>
+              `;
+              cards.appendChild(card);
+            });
+            group.appendChild(cards);
+          }
+
+          issuesRoot.appendChild(group);
         });
       }
 
-      const SYSTEM_PROMPT = `You are a senior product designer running a design critique.
+      const SYSTEM_PROMPT = `You are a senior product designer running a 30-minute design critique session.
 You receive a JSON description of one or more Figma frames.
-Return ONLY a JSON object with shape:
+
+Evaluate the design strictly through these framework areas:
+
+1. first_impression (2-second test)
+   - What draws the eye first? Is that correct?
+   - What's the emotional reaction?
+   - Is the purpose immediately clear?
+
+2. usability
+   - Can the user accomplish their goal?
+   - Is the navigation intuitive?
+   - Are interactive elements obvious?
+   - Are there unnecessary steps?
+
+3. visual_hierarchy
+   - Is there a clear reading order?
+   - Are the right elements emphasized?
+   - Is whitespace used effectively?
+   - Is typography creating the right hierarchy?
+
+4. consistency
+   - Does it follow the design system?
+   - Are spacing, colors, and typography consistent?
+   - Do similar elements behave similarly?
+
+5. accessibility
+   - Color contrast ratios
+   - Touch target sizes
+   - Text readability
+   - Alternative text for images
+
+6. flow (ONLY include this area when MORE THAN ONE frame is provided in the input; otherwise skip it entirely)
+   - Treat the selected frames as steps in a user journey, in the order they appear in the input.
+   - Is the flow coherent end-to-end? Does each step move the user toward a clear goal?
+   - Are there missing states (empty, loading, error, success, confirmation)?
+   - Do entry and exit points of each step make sense given the previous/next step?
+   - Are dead ends, loops, or unnecessary detours present?
+   - Is information carried forward consistently between steps (no surprise context loss)?
+   - Does the flow's pacing match the task complexity (too long? skipping critical confirmations?)?
+   - When you raise a flow observation, reference the specific frames involved by frameId in the detail.
+
+CRITIQUE PHILOSOPHY (very important — read carefully):
+- Think like a senior designer in a critique session, NOT a QA bot.
+- Focus on SYSTEMIC, HIGH-IMPACT observations rooted in design principles and user goals.
+- Do NOT raise pixel-level nitpicks (e.g., "padding is 14px instead of 16px", "this corner radius differs by 2px") unless they materially harm the user goal or hierarchy.
+- Do NOT raise issues about a single inconsistent token if the broader pattern is fine. Roll up small repeated issues into one systemic observation.
+- Prefer one strong observation about the structure of a screen over five small observations about its details.
+- Be specific: "The primary CTA competes with the navigation because both use filled black buttons" — not "the layout is confusing".
+- Explain WHY it matters: connect to a principle (Fitts' law, scanability, hierarchy, contrast, etc.) or to a user goal.
+- Recommend a concrete alternative the designer can apply in Figma right now.
+- Match the stage of the work: early wireframes get strategic feedback; polished mocks get refinement feedback. Infer stage from fidelity in the input.
+
+Return ONLY a JSON object with this shape:
 {
-  "issues": [
+  "areas": [
     {
-      "frameId": string,
-      "nodeId"?: string,
-      "title": string,
-      "detail": string,
-      "recommendedFix": string,
-      "severity": "critical" | "high" | "medium" | "low",
-      "category": "visual_hierarchy" | "spacing_alignment" | "accessibility" | "design_system_consistency" | "copy_clarity" | "interaction_affordance",
-      "confidence": number
+      "area": "first_impression" | "usability" | "visual_hierarchy" | "consistency" | "accessibility" | "flow",
+      "summary": string,                  // 1 sentence overall take on this area
+      "observations": [
+        {
+          "frameId": string,              // for flow observations, the most relevant frame
+          "nodeId"?: string,              // optional: reference a specific node
+          "title": string,                // short headline (max ~8 words)
+          "detail": string,               // 1-3 sentences: what is wrong AND why
+          "recommendedFix": string,       // 1-2 sentences: concrete fix the designer can apply
+          "severity": "critical" | "high" | "medium" | "low",
+          "confidence": number            // 0..1
+        }
+      ]
     }
   ]
 }
+
 Rules:
-- Be specific and actionable. Avoid generic advice.
-- Reference real elements from the input by name and nodeId where possible.
-- Limit to the 6 highest-impact issues.
-- confidence is a number between 0 and 1.
-- Output JSON only, no commentary.`;
+- Include only the framework areas where you actually have something meaningful to say. Skip the rest.
+- The "flow" area is ONLY allowed when more than one frame is provided. With a single frame, never include it.
+- Aim for 1-3 high-quality observations per included area. NEVER exceed 3 per area.
+- Total observations across all areas: between 3 and 8 (single frame), 4 and 10 (multiple frames). Quality over quantity.
+- "summary" is the senior-designer one-liner takeaway for that area.
+- Output JSON only. No prose, no markdown, no commentary.`;
 
       function buildUserPrompt(payload) {
-        return `Critique mode: ${payload.mode}\nFrames JSON:\n${JSON.stringify(payload.frames, null, 2)}`;
+        const count = payload.frames.length;
+        const flowHint = count > 1
+          ? `\n${count} frames provided in selection order — treat them as steps in a user journey and INCLUDE the "flow" area.`
+          : `\nOnly 1 frame provided — DO NOT include the "flow" area.`;
+        return `Critique mode: ${payload.mode}${flowHint}\nFrames JSON:\n${JSON.stringify(payload.frames, null, 2)}`;
       }
 
-      function normalizeIssues(raw, payload) {
-        const incoming = Array.isArray(raw?.issues) ? raw.issues : [];
-        return incoming
-          .map((issue, idx) => ({
-            issueId: `${Date.now()}-${idx}`,
-            frameId: issue.frameId || payload.frames[0]?.frameId || "unknown",
-            nodeId: issue.nodeId,
-            title: String(issue.title || "Untitled issue"),
-            detail: String(issue.detail || ""),
-            recommendedFix: String(issue.recommendedFix || ""),
-            severity: ["critical", "high", "medium", "low"].includes(issue.severity) ? issue.severity : "medium",
-            category: ["visual_hierarchy","spacing_alignment","accessibility","design_system_consistency","copy_clarity","interaction_affordance"].includes(issue.category) ? issue.category : "visual_hierarchy",
-            confidence: typeof issue.confidence === "number" ? Math.max(0, Math.min(1, issue.confidence)) : 0.6,
-            tokensCost: 0,
+      function normalizeAreas(raw, payload) {
+        const fallbackFrameId = payload.frames[0]?.frameId || "unknown";
+        const frameCount = payload.frames.length;
+        const validSeverity = ["critical", "high", "medium", "low"];
+        const validAreas = ["first_impression", "usability", "visual_hierarchy", "consistency", "accessibility", "flow"];
+
+        let areas = Array.isArray(raw?.areas) ? raw.areas : [];
+
+        if (areas.length === 0 && Array.isArray(raw?.issues)) {
+          const grouped = {};
+          raw.issues.forEach((issue) => {
+            const area = validAreas.includes(issue.category) ? issue.category : "visual_hierarchy";
+            grouped[area] = grouped[area] || { area, summary: "", observations: [] };
+            grouped[area].observations.push(issue);
+          });
+          areas = Object.values(grouped);
+        }
+
+        return areas
+          .filter((a) => validAreas.includes(a?.area))
+          .filter((a) => a.area !== "flow" || frameCount > 1)
+          .map((a) => ({
+            area: a.area,
+            summary: typeof a.summary === "string" ? a.summary : "",
+            observations: (Array.isArray(a.observations) ? a.observations : [])
+              .map((obs, idx) => ({
+                observationId: `${Date.now()}-${a.area}-${idx}`,
+                frameId: obs.frameId || fallbackFrameId,
+                nodeId: obs.nodeId,
+                title: String(obs.title || "Untitled observation"),
+                detail: String(obs.detail || ""),
+                recommendedFix: String(obs.recommendedFix || ""),
+                severity: validSeverity.includes(obs.severity) ? obs.severity : "medium",
+                confidence: typeof obs.confidence === "number" ? Math.max(0, Math.min(1, obs.confidence)) : 0.6,
+              }))
+              .filter((o) => o.title && o.detail && o.recommendedFix),
           }))
-          .filter((i) => i.title && i.detail && i.recommendedFix);
+          .filter((a) => a.summary || a.observations.length > 0);
+      }
+
+      function countObservations(areas) {
+        return areas.reduce((sum, a) => sum + a.observations.length, 0);
       }
 
       async function callOpenAI(payload, settings) {
@@ -211,6 +626,13 @@ Rules:
         return callOpenAI(payload, settings);
       }
 
+      document.getElementById("provider").addEventListener("change", syncProviderFields);
+
+      const settingsEl = document.getElementById("settings");
+      document.getElementById("settingsToggle").addEventListener("click", () => {
+        settingsEl.classList.toggle("collapsed");
+      });
+
       document.getElementById("save").onclick = () => {
         const settings = readSettings();
         send({ type: "SAVE_SETTINGS", settings });
@@ -231,6 +653,22 @@ Rules:
           return;
         }
 
+        if (message.type === "ACCESS_STATUS") {
+          const s = message.status || {};
+          if (s.paid) {
+            accessLine.hidden = true;
+            accessLine.textContent = "";
+          } else {
+            const left = typeof s.trialLeft === "number" ? s.trialLeft : 0;
+            const limit = s.trialLimit || 0;
+            accessLine.hidden = false;
+            accessLine.textContent = left > 0
+              ? `Free trial: ${left} of ${limit} runs left.`
+              : `Free trial ended. Upgrade to continue.`;
+          }
+          return;
+        }
+
         if (message.type === "SETTINGS_SAVED") {
           status.textContent = "Settings saved.";
           return;
@@ -245,9 +683,10 @@ Rules:
           status.textContent = "Calling LLM provider...";
           try {
             const raw = await runCritiqueWithProvider(message.payload);
-            state.issues = normalizeIssues(raw, message.payload);
-            renderIssues();
-            status.textContent = `Found ${state.issues.length} issues`;
+            state.areas = normalizeAreas(raw, message.payload);
+            renderAreas();
+            const total = countObservations(state.areas);
+            status.textContent = `${total} observations across ${state.areas.length} areas`;
           } catch (error) {
             status.textContent = error.message || "Provider request failed";
           }
@@ -255,6 +694,7 @@ Rules:
         }
       };
 
+      syncProviderFields();
       send({ type: "LOAD_SETTINGS" });
     </script>
   </body>
