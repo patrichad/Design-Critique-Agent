@@ -185,7 +185,6 @@
       .area-group {
         display: flex;
         flex-direction: column;
-        gap: var(--gap-sm);
       }
 
       .area-heading {
@@ -197,14 +196,15 @@
 
       .area-summary {
         font-size: 13px;
-        color: var(--fg-muted);
-        margin: 0 0 var(--gap-xs);
+        color: var(--fg);
+        margin: 4px 0 0;
       }
 
       .area-cards {
         display: flex;
         flex-direction: column;
         gap: var(--gap-md);
+        margin-top: var(--gap-sm);
       }
 
       .issue {
@@ -267,6 +267,23 @@
       .severity.high     { background: #ff5d1f; }
       .severity.medium   { background: #fb990f; }
       .severity.low      { background: #b800a0; }
+
+      .kind {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 2px 4px;
+        border-radius: var(--radius);
+        font-size: 13px;
+        font-weight: 400;
+        white-space: nowrap;
+        flex-shrink: 0;
+        text-transform: capitalize;
+      }
+      .kind.strength {
+        background: #1f7a3f;
+        color: #ffffff;
+      }
     </style>
   </head>
   <body>
@@ -302,6 +319,12 @@
           <label for="anthropicKey">Anthropic API key</label>
           <input id="anthropicKey" type="password" placeholder="sk-ant-..." />
           <p class="helper">Keys are stored locally in Figma's client storage and never sent to any server other than the chosen provider.</p>
+        </div>
+
+        <div class="field">
+          <label for="designSystemUrl">Design system URL (optional)</label>
+          <input id="designSystemUrl" type="url" placeholder="https://figma.com/file/... or https://yourds.com" />
+          <p class="helper">When provided, an extra "Design system" critique section will compare the design against this reference.</p>
         </div>
 
         <div class="actions">
@@ -351,6 +374,7 @@
         document.getElementById("model").value = settings.model || "";
         document.getElementById("openaiKey").value = settings.openaiKey || "";
         document.getElementById("anthropicKey").value = settings.anthropicKey || "";
+        document.getElementById("designSystemUrl").value = settings.designSystemUrl || "";
         syncProviderFields();
       }
 
@@ -360,6 +384,7 @@
           model: document.getElementById("model").value.trim() || undefined,
           openaiKey: document.getElementById("openaiKey").value.trim() || undefined,
           anthropicKey: document.getElementById("anthropicKey").value.trim() || undefined,
+          designSystemUrl: document.getElementById("designSystemUrl").value.trim() || undefined,
         };
       }
 
@@ -378,16 +403,16 @@
         "visual_hierarchy",
         "consistency",
         "accessibility",
-        "flow",
+        "design_system",
       ];
 
       const AREA_LABELS = {
-        first_impression: "First impression",
+        first_impression: "First impression (2 seconds)",
         usability: "Usability",
         visual_hierarchy: "Visual hierarchy",
         consistency: "Consistency",
         accessibility: "Accessibility",
-        flow: "Flow",
+        design_system: "Design system",
       };
 
       function renderAreas() {
@@ -412,19 +437,32 @@
             group.appendChild(summary);
           }
 
-          if (Array.isArray(area.observations) && area.observations.length > 0) {
+          const observations = Array.isArray(area.observations) ? area.observations : [];
+          if (observations.length > 0) {
             const cards = document.createElement("div");
             cards.className = "area-cards";
-            area.observations.forEach((obs) => {
+            observations.forEach((obs) => {
+              const isStrength = obs.kind === "strength";
               const card = document.createElement("div");
-              card.className = "issue";
+              card.className = "issue" + (isStrength ? " strength" : "");
+              const tag = isStrength
+                ? `<span class="kind strength">strength</span>`
+                : `<span class="severity ${escapeHtml(obs.severity)}">${escapeHtml(obs.severity)}</span>`;
+              const fixLine = isStrength
+                ? ""
+                : `<div class="issue-body"><b>Why it matters:</b> ${escapeHtml(obs.detail)}</div>
+                   <div class="issue-body"><b>Try:</b> ${escapeHtml(obs.recommendedFix)}</div>`;
+              const detailForStrength = isStrength
+                ? `<div class="issue-body">${escapeHtml(obs.detail)}</div>`
+                : "";
               card.innerHTML = `
                 <div class="issue-header">
-                  <span class="severity ${escapeHtml(obs.severity)}">${escapeHtml(obs.severity)}</span>
+                  ${tag}
                   <div class="issue-title">${escapeHtml(obs.title)}</div>
                 </div>
-                <div class="issue-body">${escapeHtml(obs.detail)} <b>Fix:</b> ${escapeHtml(obs.recommendedFix)}</div>
-                <div class="issue-meta">confidence: ${Number(obs.confidence).toFixed(1)}</div>
+                ${detailForStrength}
+                ${fixLine}
+                <div class="issue-meta">confidence: ${Number(obs.confidence).toFixed(2)}</div>
               `;
               cards.appendChild(card);
             });
@@ -435,12 +473,32 @@
         });
       }
 
-      const SYSTEM_PROMPT = `You are a senior product designer running a 30-minute design critique session.
-You receive a JSON description of one or more Figma frames.
+      const SYSTEM_PROMPT = `You are a senior product designer running a structured design critique.
+For each frame you receive TWO inputs:
+  (A) A rendered screenshot image of the frame — your "perception layer".
+  (B) A JSON description of the frame's structure and signals — your "structured layer".
 
-Evaluate the design strictly through these framework areas:
+Use the right input for each area:
+- PERCEPTION-LAYER areas (use the screenshot primarily, JSON only as supporting context):
+  • first_impression — what the eye sees first, emotional read, clarity of purpose.
+  • visual_hierarchy — reading order, emphasis, whitespace, typographic hierarchy.
+  • accessibility — contrast, readability, target size as visually perceived.
+  Also use the screenshot for cross-frame pattern recognition (repeated visual motifs, inconsistencies between frames).
 
-1. first_impression (2-second test)
+- STRUCTURED-LAYER areas (use the JSON signals primarily, screenshot only as a sanity check):
+  • consistency — design system adherence, tokenized spacing/typography/colors, repeated values.
+    The JSON exposes per-frame "signals" with uniqueFontSizes, uniqueSpacingValues, uniqueCornerRadii, uniqueColors,
+    detachedCandidates (containers named like components but not Instances), instanceCount, and hasAutoLayout.
+    Use these to flag concrete things like:
+      - "Button uses 14px font but other CTAs use 16px"
+      - "Spacing 18px breaks the 4/8px grid"
+      - "Detached component candidate: 'Primary Button' is a Frame, not an Instance"
+      - "Frame is missing Auto Layout (hasAutoLayout=false)"
+  • usability — use JSON for affordances and steps; use screenshot for what is actually visible.
+
+Use this Critique Framework, in this exact order, with these exact area keys:
+
+1. first_impression (2 seconds)
    - What draws the eye first? Is that correct?
    - What's the emotional reaction?
    - Is the purpose immediately clear?
@@ -468,41 +526,37 @@ Evaluate the design strictly through these framework areas:
    - Text readability
    - Alternative text for images
 
-6. flow (ONLY include this area when MORE THAN ONE frame is provided in the input; otherwise skip it entirely)
-   - Treat the selected frames as steps in a user journey, in the order they appear in the input.
-   - Is the flow coherent end-to-end? Does each step move the user toward a clear goal?
-   - Are there missing states (empty, loading, error, success, confirmation)?
-   - Do entry and exit points of each step make sense given the previous/next step?
-   - Are dead ends, loops, or unnecessary detours present?
-   - Is information carried forward consistently between steps (no surprise context loss)?
-   - Does the flow's pacing match the task complexity (too long? skipping critical confirmations?)?
-   - When you raise a flow observation, reference the specific frames involved by frameId in the detail.
+6. design_system (ONLY include this area when a design system reference is provided in the user message; otherwise skip it entirely)
+   - Compare the frames against the referenced design system at the URL or notes provided.
+   - Flag inconsistencies with the system: tokens (color, spacing, typography, radius), component usage, naming, layout patterns.
+   - If the URL is a known public system (Material, HIG, Polaris, Carbon, etc.), apply its documented conventions.
+   - If the URL is a Figma library or private system you cannot fetch, reason from the structured signals (uniqueFontSizes, uniqueSpacingValues, uniqueColors, detachedCandidates, instanceCount, hasAutoLayout) and call out concrete drift, e.g. "5 distinct font sizes detected — likely off-system" or "Detached candidates 'Primary Button', 'Card' should be Instances of the system component".
+   - Cite specific values from the signals in the "detail".
 
-CRITIQUE PHILOSOPHY (very important — read carefully):
-- Think like a senior designer in a critique session, NOT a QA bot.
-- Focus on SYSTEMIC, HIGH-IMPACT observations rooted in design principles and user goals.
-- Do NOT raise pixel-level nitpicks (e.g., "padding is 14px instead of 16px", "this corner radius differs by 2px") unless they materially harm the user goal or hierarchy.
-- Do NOT raise issues about a single inconsistent token if the broader pattern is fine. Roll up small repeated issues into one systemic observation.
-- Prefer one strong observation about the structure of a screen over five small observations about its details.
-- Be specific: "The primary CTA competes with the navigation because both use filled black buttons" — not "the layout is confusing".
-- Explain WHY it matters: connect to a principle (Fitts' law, scanability, hierarchy, contrast, etc.) or to a user goal.
-- Recommend a concrete alternative the designer can apply in Figma right now.
-- Match the stage of the work: early wireframes get strategic feedback; polished mocks get refinement feedback. Infer stage from fidelity in the input.
+How to give feedback (apply to every observation):
+- Be specific: "The CTA competes with the navigation" — not "the layout is confusing".
+- Explain why: connect feedback to design principles (hierarchy, Fitts' law, scanability, contrast, affordance) or user needs.
+- Suggest alternatives: don't just identify problems, propose a concrete fix the designer can apply in Figma now.
+- Acknowledge what works: include positive observations as "kind": "strength" entries.
+- Match the stage: infer fidelity from the input. Early exploration → strategic feedback. Polished mock → refinement feedback.
+- No nitpicks: skip pixel-level issues unless they harm the user goal or hierarchy. Roll up repeated micro-issues into one systemic observation.
+- For consistency observations grounded in JSON signals, cite the concrete numbers/names from the signals in the "detail".
 
-Return ONLY a JSON object with this shape:
+Return ONLY a JSON object with this exact shape:
 {
   "areas": [
     {
-      "area": "first_impression" | "usability" | "visual_hierarchy" | "consistency" | "accessibility" | "flow",
-      "summary": string,                  // 1 sentence overall take on this area
+      "area": "first_impression" | "usability" | "visual_hierarchy" | "consistency" | "accessibility" | "design_system",
+      "summary": string,                  // 1 sentence senior-designer takeaway for this area
       "observations": [
         {
-          "frameId": string,              // for flow observations, the most relevant frame
-          "nodeId"?: string,              // optional: reference a specific node
+          "kind": "issue" | "strength",
+          "frameId": string,
+          "nodeId"?: string,
           "title": string,                // short headline (max ~8 words)
-          "detail": string,               // 1-3 sentences: what is wrong AND why
-          "recommendedFix": string,       // 1-2 sentences: concrete fix the designer can apply
-          "severity": "critical" | "high" | "medium" | "low",
+          "detail": string,               // 1-3 sentences: what + why (link to a principle or user need)
+          "recommendedFix": string,       // 1-2 sentences: concrete alternative; for "strength", use empty string
+          "severity": "critical" | "high" | "medium" | "low",  // for "strength", use "low"
           "confidence": number            // 0..1
         }
       ]
@@ -511,26 +565,52 @@ Return ONLY a JSON object with this shape:
 }
 
 Rules:
-- Include only the framework areas where you actually have something meaningful to say. Skip the rest.
-- The "flow" area is ONLY allowed when more than one frame is provided. With a single frame, never include it.
-- Aim for 1-3 high-quality observations per included area. NEVER exceed 3 per area.
-- Total observations across all areas: between 3 and 8 (single frame), 4 and 10 (multiple frames). Quality over quantity.
-- "summary" is the senior-designer one-liner takeaway for that area.
+- Use ONLY the area keys above. Do not invent new areas.
+- The "design_system" area is ONLY allowed when a design system reference is provided in the user message. Otherwise never include it.
+- Include only the areas where you have something meaningful to say. Skip the rest.
+- Aim for 1-3 observations per included area. NEVER exceed 3 per area.
+- Include at least ONE "strength" observation across the whole critique when warranted.
 - Output JSON only. No prose, no markdown, no commentary.`;
 
-      function buildUserPrompt(payload) {
-        const count = payload.frames.length;
-        const flowHint = count > 1
-          ? `\n${count} frames provided in selection order — treat them as steps in a user journey and INCLUDE the "flow" area.`
-          : `\nOnly 1 frame provided — DO NOT include the "flow" area.`;
-        return `Critique mode: ${payload.mode}${flowHint}\nFrames JSON:\n${JSON.stringify(payload.frames, null, 2)}`;
+      function stripImagesFromFrames(frames) {
+        return frames.map((f) => {
+          const { thumbnailDataUrl, ...rest } = f;
+          return rest;
+        });
       }
 
-      function normalizeAreas(raw, payload) {
+      function buildUserPromptText(payload, settings) {
+        const count = payload.frames.length;
+        const frameHint = count > 1
+          ? `\n${count} frames provided in selection order. Treat each frame independently within the framework, and look across frames for repeated visual or structural patterns.`
+          : `\n1 frame provided.`;
+        const dsUrl = settings && settings.designSystemUrl;
+        const dsHint = dsUrl
+          ? `\nDesign system reference URL: ${dsUrl}\nINCLUDE the "design_system" area, comparing the frames against this reference.`
+          : `\nNo design system reference provided. DO NOT include the "design_system" area.`;
+        const structured = stripImagesFromFrames(payload.frames);
+        return `Critique mode: ${payload.mode}${frameHint}${dsHint}\nEach frame has both a screenshot image (provided alongside) and structured JSON below.\nStructured frames JSON (signals included):\n${JSON.stringify(structured, null, 2)}`;
+      }
+
+      function dataUrlToBase64Parts(dataUrl) {
+        const match = /^data:([^;]+);base64,(.*)$/.exec(dataUrl || "");
+        if (!match) return null;
+        return { mediaType: match[1], data: match[2] };
+      }
+
+      function normalizeAreas(raw, payload, settings) {
         const fallbackFrameId = payload.frames[0]?.frameId || "unknown";
-        const frameCount = payload.frames.length;
         const validSeverity = ["critical", "high", "medium", "low"];
-        const validAreas = ["first_impression", "usability", "visual_hierarchy", "consistency", "accessibility", "flow"];
+        const validKinds = ["issue", "strength"];
+        const dsAllowed = !!(settings && settings.designSystemUrl);
+        const validAreas = [
+          "first_impression",
+          "usability",
+          "visual_hierarchy",
+          "consistency",
+          "accessibility",
+          ...(dsAllowed ? ["design_system"] : []),
+        ];
 
         let areas = Array.isArray(raw?.areas) ? raw.areas : [];
 
@@ -546,22 +626,25 @@ Rules:
 
         return areas
           .filter((a) => validAreas.includes(a?.area))
-          .filter((a) => a.area !== "flow" || frameCount > 1)
           .map((a) => ({
             area: a.area,
             summary: typeof a.summary === "string" ? a.summary : "",
             observations: (Array.isArray(a.observations) ? a.observations : [])
-              .map((obs, idx) => ({
-                observationId: `${Date.now()}-${a.area}-${idx}`,
-                frameId: obs.frameId || fallbackFrameId,
-                nodeId: obs.nodeId,
-                title: String(obs.title || "Untitled observation"),
-                detail: String(obs.detail || ""),
-                recommendedFix: String(obs.recommendedFix || ""),
-                severity: validSeverity.includes(obs.severity) ? obs.severity : "medium",
-                confidence: typeof obs.confidence === "number" ? Math.max(0, Math.min(1, obs.confidence)) : 0.6,
-              }))
-              .filter((o) => o.title && o.detail && o.recommendedFix),
+              .map((obs, idx) => {
+                const kind = validKinds.includes(obs.kind) ? obs.kind : "issue";
+                return {
+                  observationId: `${Date.now()}-${a.area}-${idx}`,
+                  kind,
+                  frameId: obs.frameId || fallbackFrameId,
+                  nodeId: obs.nodeId,
+                  title: String(obs.title || "Untitled observation"),
+                  detail: String(obs.detail || ""),
+                  recommendedFix: String(obs.recommendedFix || ""),
+                  severity: validSeverity.includes(obs.severity) ? obs.severity : "medium",
+                  confidence: typeof obs.confidence === "number" ? Math.max(0, Math.min(1, obs.confidence)) : 0.6,
+                };
+              })
+              .filter((o) => o.title && o.detail && (o.kind === "strength" || o.recommendedFix)),
           }))
           .filter((a) => a.summary || a.observations.length > 0);
       }
@@ -573,6 +656,17 @@ Rules:
       async function callOpenAI(payload, settings) {
         if (!settings.openaiKey) throw new Error("Missing OpenAI API key in settings.");
         const model = settings.model || "gpt-4o-mini";
+
+        const userContent = [{ type: "text", text: buildUserPromptText(payload, settings) }];
+        payload.frames.forEach((f) => {
+          if (!f.thumbnailDataUrl) return;
+          userContent.push({ type: "text", text: `Screenshot for frameId=${f.frameId} (${f.frameName}):` });
+          userContent.push({
+            type: "image_url",
+            image_url: { url: f.thumbnailDataUrl, detail: "high" },
+          });
+        });
+
         const res = await fetch("https://api.openai.com/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -584,7 +678,7 @@ Rules:
             response_format: { type: "json_object" },
             messages: [
               { role: "system", content: SYSTEM_PROMPT },
-              { role: "user", content: buildUserPrompt(payload) },
+              { role: "user", content: userContent },
             ],
             temperature: 0.2,
           }),
@@ -598,6 +692,18 @@ Rules:
       async function callAnthropic(payload, settings) {
         if (!settings.anthropicKey) throw new Error("Missing Anthropic API key in settings.");
         const model = settings.model || "claude-3-5-sonnet-latest";
+
+        const userContent = [{ type: "text", text: buildUserPromptText(payload, settings) }];
+        payload.frames.forEach((f) => {
+          const parts = dataUrlToBase64Parts(f.thumbnailDataUrl);
+          if (!parts) return;
+          userContent.push({ type: "text", text: `Screenshot for frameId=${f.frameId} (${f.frameName}):` });
+          userContent.push({
+            type: "image",
+            source: { type: "base64", media_type: parts.mediaType, data: parts.data },
+          });
+        });
+
         const res = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: {
@@ -608,9 +714,9 @@ Rules:
           },
           body: JSON.stringify({
             model,
-            max_tokens: 1500,
+            max_tokens: 2000,
             system: SYSTEM_PROMPT,
-            messages: [{ role: "user", content: buildUserPrompt(payload) }],
+            messages: [{ role: "user", content: userContent }],
           }),
         });
         const data = await res.json();
@@ -674,6 +780,11 @@ Rules:
           return;
         }
 
+        if (message.type === "REQUEST_PROGRESS") {
+          status.textContent = message.message || "";
+          return;
+        }
+
         if (message.type === "REQUEST_ERROR") {
           status.textContent = message.error;
           return;
@@ -682,8 +793,9 @@ Rules:
         if (message.type === "REQUEST_BUILT") {
           status.textContent = "Calling LLM provider...";
           try {
+            const settings = readSettings();
             const raw = await runCritiqueWithProvider(message.payload);
-            state.areas = normalizeAreas(raw, message.payload);
+            state.areas = normalizeAreas(raw, message.payload, settings);
             renderAreas();
             const total = countObservations(state.areas);
             status.textContent = `${total} observations across ${state.areas.length} areas`;

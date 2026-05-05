@@ -45,12 +45,25 @@ export interface CritiqueRequestFrameNode {
   children?: CritiqueRequestFrameNode[];
 }
 
+export interface FrameSignals {
+  hasAutoLayout: boolean;
+  childCount: number;
+  instanceCount: number;
+  detachedCandidates: string[];
+  uniqueFontSizes: number[];
+  uniqueSpacingValues: number[];
+  uniqueCornerRadii: number[];
+  uniqueColors: string[];
+}
+
 export interface CritiqueRequestFrame {
   frameId: string;
   frameName: string;
   width: number;
   height: number;
   thumbnailUrl?: string;
+  thumbnailDataUrl?: string;
+  signals?: FrameSignals;
   nodes: CritiqueRequestFrameNode[];
 }
 

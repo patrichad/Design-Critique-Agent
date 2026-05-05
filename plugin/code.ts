@@ -8,6 +8,7 @@ interface SavedSettings {
   openaiKey?: string;
   anthropicKey?: string;
   model?: string;
+  designSystemUrl?: string;
 }
 
 interface LoadSettingsMessage {
@@ -32,6 +33,7 @@ type IncomingMessage =
 const SETTINGS_KEY = "design-critique-agent.settings";
 const TRIAL_KEY = "design-critique-agent.trialRunsLeft";
 const TRIAL_LIMIT = 3;
+const TRIAL_GATE_ENABLED = true;
 
 figma.showUI(__html__, { width: 460, height: 640 });
 
@@ -63,6 +65,10 @@ type AccessState =
   | { ok: false; reason: string };
 
 async function ensureAccess(): Promise<AccessState> {
+  if (!TRIAL_GATE_ENABLED) {
+    return { ok: true, mode: "paid" };
+  }
+
   let payments: PaymentsAPI | undefined;
   try {
     payments = figma.payments;
@@ -107,6 +113,14 @@ async function ensureAccess(): Promise<AccessState> {
 }
 
 async function postAccessStatus(): Promise<void> {
+  if (!TRIAL_GATE_ENABLED) {
+    figma.ui.postMessage({
+      type: "ACCESS_STATUS",
+      status: { paid: true, trialLeft: null, trialLimit: TRIAL_LIMIT },
+    });
+    return;
+  }
+
   let paid = true;
   try {
     paid = !figma.payments || figma.payments.status.type === "PAID";
@@ -145,7 +159,7 @@ figma.ui.onmessage = async (message: IncomingMessage) => {
     }
 
     const selectedFrames = figma.currentPage.selection;
-    const request: CritiqueRequest = buildCritiqueRequest({
+    const request: CritiqueRequest = await buildCritiqueRequest({
       teamId: "local",
       userId: "local",
       pluginVersion: "0.3.0",
@@ -159,6 +173,29 @@ figma.ui.onmessage = async (message: IncomingMessage) => {
         error: "Select at least one frame before running critique.",
       });
       return;
+    }
+
+    figma.ui.postMessage({ type: "REQUEST_PROGRESS", message: "Exporting frame screenshots..." });
+    const frameNodes = selectedFrames.filter(
+      (n): n is FrameNode => n.type === "FRAME",
+    );
+    for (let i = 0; i < request.frames.length; i++) {
+      const node = frameNodes[i];
+      if (!node) continue;
+      try {
+        const targetWidth = Math.max(
+          256,
+          Math.min(1600, Math.round(node.width * 2)),
+        );
+        const bytes = await node.exportAsync({
+          format: "PNG",
+          constraint: { type: "WIDTH", value: targetWidth },
+        });
+        const b64 = figma.base64Encode(bytes);
+        request.frames[i].thumbnailDataUrl = `data:image/png;base64,${b64}`;
+      } catch (e) {
+        // skip image; still send structured payload
+      }
     }
 
     if (access.mode === "trial") {
