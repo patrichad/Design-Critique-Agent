@@ -114,6 +114,13 @@
         color: var(--fg);
         height: 32px;
         width: 100%;
+        box-shadow: 0 0 0 0 transparent;
+        transition: box-shadow 120ms ease, border-color 120ms ease;
+      }
+
+      .field > input:hover,
+      .field > select:hover {
+        box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.15);
       }
 
       .field > select {
@@ -164,15 +171,24 @@
         background: var(--primary);
         color: var(--primary-fg);
         border: 1px solid var(--primary);
+        box-shadow: 0 0 0 0 transparent;
+        transition: box-shadow 120ms ease;
       }
-      button.primary:hover { opacity: 0.9; }
+      button.primary:hover {
+        box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.15);
+      }
 
       button.secondary {
         background: transparent;
         color: var(--fg);
         border: 1px solid var(--fg);
+        box-shadow: 0 0 0 0 transparent;
+        transition: box-shadow 120ms ease, background 120ms ease;
       }
-      button.secondary:hover { background: rgba(0,0,0,0.04); }
+      button.secondary:hover {
+        background: rgba(0,0,0,0.04);
+        box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.15);
+      }
 
       .actions { display: flex; gap: var(--gap-sm); }
 
