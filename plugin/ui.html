@@ -554,6 +554,11 @@ How to give feedback (apply to every observation):
 - No nitpicks: skip pixel-level issues unless they harm the user goal or hierarchy. Roll up repeated micro-issues into one systemic observation.
 - For consistency observations grounded in JSON signals, cite the concrete numbers/names from the signals in the "detail".
 
+Area coverage rules:
+- ALWAYS include all five base areas: first_impression, usability, visual_hierarchy, consistency, accessibility. Never skip a base area just because the input is small or because another area (like design_system) is also requested.
+- An area may be omitted ONLY if it is genuinely not applicable to the input (e.g. no text at all → accessibility text checks may be minimal, but still produce at least a brief summary).
+- Adding the design_system or flow area NEVER replaces the base areas — it is additive.
+
 Return ONLY a JSON object with this exact shape:
 {
   "areas": [
@@ -580,7 +585,7 @@ Rules:
 - Use ONLY the area keys above. Do not invent new areas.
 - The "flow" area is ONLY allowed when more than one frame is provided. With a single frame, never include it.
 - The "design_system" area is ONLY allowed when a design system reference is provided in the user message. Otherwise never include it.
-- Include only the areas where you have something meaningful to say. Skip the rest.
+- ALWAYS include all five base areas (first_impression, usability, visual_hierarchy, consistency, accessibility). Adding flow or design_system is additive, never a replacement.
 - Aim for 1-3 observations per included area. NEVER exceed 3 per area.
 - Include at least ONE "strength" observation across the whole critique when warranted.
 - Output JSON only. No prose, no markdown, no commentary.`;
@@ -597,15 +602,16 @@ Rules:
         const frameHint = count > 1
           ? `\n${count} frames provided in selection order. Treat each frame independently within the framework, and look across frames for repeated visual or structural patterns.`
           : `\n1 frame provided.`;
+        const baseAreasHint = `\nALWAYS cover these five base areas, in this order: first_impression, usability, visual_hierarchy, consistency, accessibility. Do not drop any of them.`;
         const flowHint = count > 1
-          ? `\nINCLUDE the "flow" area, treating the frames as ordered steps of a user journey.`
+          ? `\nADDITIONALLY include the "flow" area, treating the frames as ordered steps of a user journey.`
           : `\nDO NOT include the "flow" area (only one frame).`;
         const dsUrl = settings && settings.designSystemUrl;
         const dsHint = dsUrl
-          ? `\nDesign system reference URL: ${dsUrl}\nINCLUDE the "design_system" area, comparing the frames against this reference.`
+          ? `\nDesign system reference URL: ${dsUrl}\nADDITIONALLY include the "design_system" area, comparing the frames against this reference. This is in ADDITION to the five base areas, not a replacement.`
           : `\nNo design system reference provided. DO NOT include the "design_system" area.`;
         const structured = stripImagesFromFrames(payload.frames);
-        return `Critique mode: ${payload.mode}${frameHint}${flowHint}${dsHint}\nEach frame has both a screenshot image (provided alongside) and structured JSON below.\nStructured frames JSON (signals included):\n${JSON.stringify(structured, null, 2)}`;
+        return `Critique mode: ${payload.mode}${frameHint}${baseAreasHint}${flowHint}${dsHint}\nEach frame has both a screenshot image (provided alongside) and structured JSON below.\nStructured frames JSON (signals included):\n${JSON.stringify(structured, null, 2)}`;
       }
 
       function dataUrlToBase64Parts(dataUrl) {
@@ -733,7 +739,7 @@ Rules:
           },
           body: JSON.stringify({
             model,
-            max_tokens: 2000,
+            max_tokens: 4096,
             system: SYSTEM_PROMPT,
             messages: [{ role: "user", content: userContent }],
           }),
