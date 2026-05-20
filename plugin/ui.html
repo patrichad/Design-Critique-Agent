@@ -360,7 +360,6 @@
         </div>
         <button id="run" class="primary" type="button">Run critique</button>
       </div>
-      <p id="access" class="helper" hidden></p>
       <p id="status" class="status"></p>
     </div>
 
@@ -369,7 +368,6 @@
     <script>
       const state = { areas: [], settings: null };
       const status = document.getElementById("status");
-      const accessLine = document.getElementById("access");
       const issuesRoot = document.getElementById("issues");
 
       const send = (msg) => parent.postMessage({ pluginMessage: msg }, "*");
@@ -797,22 +795,6 @@ Rules:
 
         if (message.type === "SETTINGS_LOADED") {
           applySettings(message.settings);
-          return;
-        }
-
-        if (message.type === "ACCESS_STATUS") {
-          const s = message.status || {};
-          if (s.paid) {
-            accessLine.hidden = true;
-            accessLine.textContent = "";
-          } else {
-            const left = typeof s.trialLeft === "number" ? s.trialLeft : 0;
-            const limit = s.trialLimit || 0;
-            accessLine.hidden = false;
-            accessLine.textContent = left > 0
-              ? `Free trial: ${left} of ${limit} runs left.`
-              : `Free trial ended. Upgrade to continue.`;
-          }
           return;
         }
 
