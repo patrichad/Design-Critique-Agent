@@ -1,11 +1,6 @@
 import { IncomingMessage, ServerResponse } from "http";
 import { CritiqueRequest } from "../../../shared/contracts";
 import { parseBearerToken, verifyAccessToken } from "../../services/auth/auth";
-import {
-  assertSufficientCredits,
-  debitCreditsAndStoreUsage,
-  estimateCredits,
-} from "../../services/billing/creditLedger";
 import { getCachedCritique, requestHash, setCachedCritique } from "../../services/cache/critiqueCache";
 import { runCritiqueOrchestrator } from "../../services/critique/orchestrator";
 import { confidenceGate, sanitizeIssueContent } from "../../services/critique/safeguards";
@@ -56,9 +51,6 @@ export async function handleCreateCritique(
       return;
     }
 
-    const creditsNeeded = estimateCredits(payload.mode, payload.frames.length);
-    assertSufficientCredits(payload.teamId, creditsNeeded);
-
     const hash = requestHash(payload);
     const cached = getCachedCritique(hash);
     const result = cached ?? (await runCritiqueOrchestrator(payload));
@@ -70,16 +62,7 @@ export async function handleCreateCritique(
     const filteredResult = {
       ...result,
       issues: filteredIssues,
-      totalTokensCost: filteredIssues.reduce((sum, issue) => sum + issue.tokensCost, 0),
     };
-
-    const usage = debitCreditsAndStoreUsage({
-      teamId: payload.teamId,
-      critiqueId: filteredResult.critiqueId,
-      mode: payload.mode,
-      framesAnalyzed: payload.frames.length,
-      creditsDebited: creditsNeeded,
-    });
 
     trackEvent("critique_completed", {
       teamId: payload.teamId,
@@ -89,19 +72,10 @@ export async function handleCreateCritique(
       issueCount: filteredResult.issues.length,
     });
 
-    writeJson(response, 200, {
-      ...filteredResult,
-      creditsDebited: usage.creditsDebited,
-      usageId: usage.usageId,
-    });
+    writeJson(response, 200, filteredResult);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    const statusCode = message.includes("Insufficient credits")
-      ? 402
-      : message.includes("Payload too large")
-        ? 413
-        : 400;
-
+    const statusCode = message.includes("Payload too large") ? 413 : 400;
     writeJson(response, statusCode, { error: message });
   }
 }

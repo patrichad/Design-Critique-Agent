@@ -1,6 +1,6 @@
 {
-  "name": "Design Critique Agent",
-  "id": "1632122533776842770",
+  "name": "Agentic Design Critique",
+  "id": "1640489549924763883",
   "api": "1.0.0",
   "main": "code.js",
   "ui": "ui.html",

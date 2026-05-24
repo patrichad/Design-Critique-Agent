@@ -4,7 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build": "npm run build:plugin",
     "build:plugin": "node scripts/build-plugin.mjs",
+    "verify:plugin": "node scripts/verify-plugin.mjs",
+    "prepublish:plugin": "npm run build:plugin && npm run verify:plugin",
     "dev:api": "tsx backend/api/server.ts",
     "typecheck": "tsc --noEmit"
   },
